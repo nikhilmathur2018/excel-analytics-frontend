@@ -3,6 +3,9 @@ import axios from 'axios';
 import { useSelector } from 'react-redux';
 import { Link } from 'react-router-dom';
 
+// 1. Define API_URL using the environment variable
+const API_URL = process.env.REACT_APP_API_URL;
+
 function UploadHistory() {
     const [history, setHistory] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -27,7 +30,8 @@ function UploadHistory() {
                 headers: { Authorization: `Bearer ${user.token}` },
             };
 
-            const response = await axios.get('/api/upload/history', config);
+            // 2. Use API_URL for the history fetch
+            const response = await axios.get(`${API_URL}api/upload/history`, config); // <-- FIX HERE
             console.log("Fetched history:", response.data);
             setHistory(response.data);
             setLoading(false);
@@ -84,7 +88,8 @@ function UploadHistory() {
                 headers: { Authorization: `Bearer ${user.token}` },
             };
 
-            await axios.put(`/api/upload/${itemToDelete.id}/sheet/${itemToDelete.sheetName}`, {}, config);
+            // 3. Use API_URL for sheet delete
+            await axios.put(`${API_URL}api/upload/${itemToDelete.id}/sheet/${itemToDelete.sheetName}`, {}, config); // <-- FIX HERE
 
             await fetchHistory();
             setItemToDelete(null);
@@ -110,7 +115,8 @@ function UploadHistory() {
                 headers: { Authorization: `Bearer ${user.token}` },
             };
 
-            await axios.delete(`/api/upload/${itemToDelete.id}`, config);
+            // 4. Use API_URL for file delete
+            await axios.delete(`${API_URL}api/upload/${itemToDelete.id}`, config); // <-- FIX HERE
 
             await fetchHistory();
             setItemToDelete(null);

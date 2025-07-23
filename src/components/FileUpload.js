@@ -3,6 +3,9 @@ import axios from 'axios';
 import { useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 
+// 1. Define API_URL using the environment variable
+const API_URL = process.env.REACT_APP_API_URL;
+
 function FileUpload() {
     const [selectedFile, setSelectedFile] = useState(null);
     const [message, setMessage] = useState('');
@@ -23,7 +26,7 @@ function FileUpload() {
 
         setLoading(true);
         const formData = new FormData();
-        formData.append('excelFile', selectedFile);
+        formData.append('excelFile', selectedFile); // Ensure 'excelFile' matches your multer field name on backend
 
         try {
             const config = {
@@ -32,8 +35,10 @@ function FileUpload() {
                     Authorization: `Bearer ${user.token}`,
                 },
             };
-            // FIX: Removed 'const response =' as it was unused
-            await axios.post('/api/upload', formData, config);
+            
+            // FIX HERE: Use API_URL for the upload endpoint
+            await axios.post(`${API_URL}api/upload`, formData, config); // <-- Corrected line
+            
             setMessage('File uploaded and parsed successfully!');
             setLoading(false);
             navigate('/dashboard'); // Or a specific analysis page
