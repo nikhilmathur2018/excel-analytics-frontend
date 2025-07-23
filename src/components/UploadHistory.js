@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react'; // Import useCallback
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { useSelector } from 'react-redux';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router-dom'; // Assuming Link is used for navigation to analyze page
 
 // 1. Define API_URL using the environment variable
 const API_URL = process.env.REACT_APP_API_URL;
@@ -17,7 +17,6 @@ function UploadHistory() {
 
     const { user } = useSelector((state) => state.auth);
 
-    // FIX: Wrap fetchHistory in useCallback
     const fetchHistory = useCallback(async () => {
         try {
             if (!user || !user.token) {
@@ -30,8 +29,8 @@ function UploadHistory() {
                 headers: { Authorization: `Bearer ${user.token}` },
             };
 
-            // 2. Use API_URL for the history fetch
-            const response = await axios.get(`${API_URL}api/upload/history`, config); // <-- FIX HERE
+            // Ensure the API_URL is correctly prefixed with /api
+            const response = await axios.get(`${API_URL}/api/upload/history`, config);
             console.log("Fetched history:", response.data);
             setHistory(response.data);
             setLoading(false);
@@ -40,7 +39,7 @@ function UploadHistory() {
             setError('Failed to fetch upload history. Please try again.');
             setLoading(false);
         }
-    }, [user]); // Dependency for useCallback: fetchHistory depends on 'user'
+    }, [user]);
 
     useEffect(() => {
         if (user) {
@@ -50,7 +49,7 @@ function UploadHistory() {
             setHistory([]);
             setError(null);
         }
-    }, [user, fetchHistory]); // Dependency array: Now includes fetchHistory
+    }, [user, fetchHistory]);
 
     const handleToggleExpand = (fileId) => {
         setExpandedFiles(prev => ({
@@ -66,7 +65,8 @@ function UploadHistory() {
         } else if (type === 'sheet') {
             const file = history.find(f => f._id === fileId);
             if (file && file.sheetNames.length === 1) {
-                setItemToDelete({ type: 'file', id: fileId, name: file.originalFileName });
+                // If it's the last sheet, treat as file deletion
+                setItemToDelete({ type: 'file', id: fileId, name: file.originalFileName }); // Use originalFileName
                 setShowFileConfirmModal(true);
             } else {
                 setShowSheetConfirmModal(true);
@@ -88,8 +88,8 @@ function UploadHistory() {
                 headers: { Authorization: `Bearer ${user.token}` },
             };
 
-            // 3. Use API_URL for sheet delete
-            await axios.put(`${API_URL}api/upload/${itemToDelete.id}/sheet/${itemToDelete.sheetName}`, {}, config); // <-- FIX HERE
+            // Ensure the API_URL is correctly prefixed with /api
+            await axios.put(`${API_URL}/api/upload/${itemToDelete.id}/sheet/${itemToDelete.sheetName}`, {}, config);
 
             await fetchHistory();
             setItemToDelete(null);
@@ -115,8 +115,8 @@ function UploadHistory() {
                 headers: { Authorization: `Bearer ${user.token}` },
             };
 
-            // 4. Use API_URL for file delete
-            await axios.delete(`${API_URL}api/upload/${itemToDelete.id}`, config); // <-- FIX HERE
+            // Ensure the API_URL is correctly prefixed with /api
+            await axios.delete(`${API_URL}/api/upload/${itemToDelete.id}`, config);
 
             await fetchHistory();
             setItemToDelete(null);
@@ -159,7 +159,7 @@ function UploadHistory() {
                                             </svg>
                                         ) : (
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                                <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 011.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 010-1.414z" clipRule="evenodd" />
+                                                <path fillRule="evenodd" d="M5.293 7.293a1 1 011.414 0L10 10.586l3.293-3.293a1 1 011.414 1.414l-4 4a1 1 01-1.414 0l-4-4a1 1 010-1.414z" clipRule="evenodd" />
                                             </svg>
                                         )}
                                     </button>
@@ -167,11 +167,13 @@ function UploadHistory() {
                                         to={`/analyze/${file._id}`}
                                         className="text-blue-700 hover:text-blue-900 hover:underline text-lg font-medium flex-grow"
                                     >
-                                        {file.originalFileName} (Uploaded on: {new Date(file.uploadDate).toLocaleDateString()})
+                                        {/* CORRECTED LINE: Changed file.originalName to file.originalFileName */}
+                                        {file.originalFileName} (Uploaded on: {/* CORRECTED LINE: Changed file.uploadDate to file.createdAt */}
+                                        {new Date(file.createdAt).toLocaleDateString()})
                                     </Link>
                                 </div>
                                 <button
-                                    onClick={() => handleDeleteClick('file', file._id, file.originalFileName)}
+                                    onClick={() => handleDeleteClick('file', file._id, file.originalFileName)} // Use originalFileName here too
                                     className="px-3 py-1 bg-red-500 text-white rounded-md hover:bg-red-600 transition duration-200 text-sm font-medium ml-4"
                                 >
                                     Delete File
@@ -184,7 +186,7 @@ function UploadHistory() {
                                         <li key={`${file._id}-${sheetName}`} className="flex justify-between items-center py-1">
                                             <span className="text-gray-700 text-base flex-grow">Sheet: {sheetName}</span>
                                             <button
-                                                onClick={() => handleDeleteClick('sheet', file._id, file.originalFileName, sheetName)}
+                                                onClick={() => handleDeleteClick('sheet', file._id, file.originalFileName, sheetName)} // Use originalFileName here too
                                                 className="px-2 py-1 bg-red-400 text-white rounded-md hover:bg-red-500 transition duration-200 text-xs font-medium ml-2"
                                                 title={`Delete sheet "${sheetName}"`}
                                             >

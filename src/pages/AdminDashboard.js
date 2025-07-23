@@ -1,94 +1,79 @@
 // client/src/pages/AdminDashboard.js
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
+import { useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { useSelector } from 'react-redux'; // Assuming Redux Toolkit is used for auth state
-import { useNavigate } from 'react-router-dom'; // For redirection
-import { createPortal } from 'react-dom'; // For custom modal
 
-// 1. Define API_URL using the environment variable
 const API_URL = process.env.REACT_APP_API_URL;
 
-// Custom Modal Component (replaces window.confirm)
-const ConfirmationModal = ({ message, onConfirm, onCancel }) => {
-    return createPortal(
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex justify-center items-center z-50">
-            <div className="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full mx-4">
-                <p className="text-lg font-semibold mb-4">{message}</p>
-                <div className="flex justify-end space-x-4">
-                    <button
-                        onClick={onCancel}
-                        className="px-4 py-2 bg-gray-300 text-gray-800 rounded-md hover:bg-gray-400 transition duration-200"
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        onClick={onConfirm}
-                        className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition duration-200"
-                    >
-                        Confirm
-                    </button>
-                </div>
-            </div>
-        </div>,
-        document.body // Portal to the body
-    );
-};
-
-
 function AdminDashboard() {
-    // Access user state from Redux (assuming state.auth.user holds user info and token)
-    const { user } = useSelector((state) => state.auth);
     const navigate = useNavigate();
+    const { user } = useSelector((state) => state.auth);
 
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [showDeleteModal, setShowDeleteModal] = useState(false);
-    const [userToDelete, setUserToDelete] = useState(null);
+    const [message, setMessage] = useState(''); // For success/error messages
 
-    // Effect to check admin role and fetch users
+    // State for modals
+    const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
+    const [showRoleConfirmModal, setShowRoleConfirmModal] = useState(false);
+    const [selectedUser, setSelectedUser] = useState(null);
+    const [newRole, setNewRole] = useState('');
+
+
     useEffect(() => {
-        // Redirect if user is not logged in or not an admin
-        if (!user || user.role !== 'admin') {
-            navigate('/dashboard'); // Or '/login' if they are not logged in at all
-            return; // Stop execution if not authorized
+        // Redirect if not logged in or not an admin
+        if (!user) {
+            navigate('/login');
+        } else if (user.role !== 'admin') {
+            navigate('/dashboard'); // Or some unauthorized page
         }
+    }, [user, navigate]);
 
-        const fetchUsers = async () => {
-            try {
-                setLoading(true); // Set loading true before fetch
-                setError(null); // Clear previous errors
-                const config = {
-                    headers: {
-                        Authorization: `Bearer ${user.token}`, // Include JWT token
-                    },
-                };
-                // FIX: Use API_URL for fetching users
-                const response = await axios.get(`${API_URL}api/admin/users`, config);
-                setUsers(response.data);
-            } catch (err) {
-                console.error('Error fetching users:', err);
-                setError('Failed to fetch users. Please try again.');
-            } finally {
-                setLoading(false); // Set loading false after fetch (success or error)
-            }
-        };
+    const fetchUsers = useCallback(async () => {
+        if (!user || user.role !== 'admin') return;
 
-        // Only fetch users if user is authenticated and is an admin
-        if (user && user.role === 'admin') {
-            fetchUsers();
+        setLoading(true);
+        setError(null);
+        try {
+            const config = {
+                headers: {
+                    Authorization: `Bearer ${user.token}`,
+                },
+            };
+            // CORRECTED LINE: Added '/api/admin' prefix
+            const response = await axios.get(`${API_URL}/api/admin/users`, config);
+            setUsers(response.data);
+            setLoading(false);
+        } catch (err) {
+            console.error('Error fetching users:', err.response?.data?.message || err.message);
+            setError('Failed to fetch users. Please try again.');
+            setLoading(false);
         }
-    }, [user, navigate]); // Dependencies: re-run if user or navigate changes
+    }, [user]);
 
-    // Handle user deletion (uses custom modal instead of window.confirm)
-    const handleDeleteUser = (userId) => {
-        setUserToDelete(userId);
-        setShowDeleteModal(true);
+    useEffect(() => {
+        fetchUsers();
+    }, [fetchUsers]);
+
+    // Handle delete user button click
+    const handleDeleteUserClick = (userId, username) => {
+        setSelectedUser({ id: userId, username: username });
+        setShowDeleteConfirmModal(true);
     };
 
-    const confirmDelete = async () => {
-        setShowDeleteModal(false); // Close the modal
-        if (!userToDelete) return;
+    // Handle role change button click
+    const handleChangeRoleClick = (userId, username, currentRole) => {
+        setSelectedUser({ id: userId, username: username, currentRole: currentRole });
+        setNewRole(currentRole === 'admin' ? 'user' : 'admin'); // Toggle role
+        setShowRoleConfirmModal(true);
+    };
+
+
+    const confirmDeleteUser = async () => {
+        setShowDeleteConfirmModal(false);
+        if (!selectedUser) return;
 
         try {
             const config = {
@@ -96,124 +81,170 @@ function AdminDashboard() {
                     Authorization: `Bearer ${user.token}`,
                 },
             };
-            // FIX: Use API_URL for deleting a user
-            await axios.delete(`${API_URL}api/admin/users/${userToDelete}`, config);
-            // Filter out the deleted user from the state to update UI
-            setUsers(users.filter((u) => u._id !== userToDelete));
-            setUserToDelete(null); // Clear user to delete
+            // CORRECTED LINE: Added '/api/admin' prefix
+            await axios.delete(`${API_URL}/api/admin/users/${selectedUser.id}`, config);
+            setMessage(`User ${selectedUser.username} deleted successfully.`);
+            fetchUsers(); // Refresh the list
         } catch (err) {
-            console.error('Error deleting user:', err);
-            setError('Failed to delete user. Please try again.');
+            console.error('Error deleting user:', err.response?.data?.message || err.message);
+            setError(`Failed to delete user: ${err.response?.data?.message || err.message}`);
+        } finally {
+            setSelectedUser(null);
         }
     };
 
-    const cancelDelete = () => {
-        setShowDeleteModal(false);
-        setUserToDelete(null);
-    };
+    const confirmChangeRole = async () => {
+        setShowRoleConfirmModal(false);
+        if (!selectedUser || !newRole) return;
 
-
-    // Handle updating user role
-    const handleUpdateUserRole = async (userId, newRole) => {
         try {
             const config = {
                 headers: {
                     Authorization: `Bearer ${user.token}`,
                 },
             };
-            // FIX: Use API_URL for updating user role
-            await axios.put(`${API_URL}api/admin/users/${userId}/role`, { role: newRole }, config);
-            // Update the user's role in the local state to reflect changes immediately
-            setUsers(users.map((u) => (u._id === userId ? { ...u, role: newRole } : u)));
+            // CORRECTED LINE: Added '/api/admin' prefix
+            await axios.put(`${API_URL}/api/admin/users/${selectedUser.id}/role`, { role: newRole }, config);
+            setMessage(`User ${selectedUser.username}'s role changed to ${newRole} successfully.`);
+            fetchUsers(); // Refresh the list
         } catch (err) {
-            console.error('Error updating user role:', err);
-            setError('Failed to update user role. Please try again.');
+            console.error('Error changing user role:', err.response?.data?.message || err.message);
+            setError(`Failed to change role: ${err.response?.data?.message || err.message}`);
+        } finally {
+            setSelectedUser(null);
+            setNewRole('');
         }
     };
 
-    // Conditional rendering for loading, error, and main content
+    const cancelAction = () => {
+        setShowDeleteConfirmModal(false);
+        setShowRoleConfirmModal(false);
+        setSelectedUser(null);
+        setNewRole('');
+    };
+
+
     if (loading) {
-        return (
-            <div className="flex justify-center items-center min-h-screen bg-gray-100">
-                <div className="text-xl font-semibold text-gray-700">Loading admin data...</div>
-            </div>
-        );
+        return <div className="text-center py-8 text-lg text-gray-600">Loading users...</div>;
     }
 
     if (error) {
-        return (
-            <div className="flex justify-center items-center min-h-screen bg-gray-100">
-                <div className="text-red-600 text-lg p-4 bg-red-100 rounded-md shadow-sm">
-                    {error}
-                </div>
-            </div>
-        );
+        return <div className="text-center py-8 text-xl text-red-600 font-semibold">{error}</div>;
+    }
+
+    // Only render if user is admin
+    if (!user || user.role !== 'admin') {
+        return <div className="text-center py-8 text-xl text-red-600 font-semibold">Unauthorized Access</div>;
     }
 
     return (
-        <div className="min-h-screen bg-gray-100 p-4 sm:p-6 lg:p-8 font-inter">
-            <div className="max-w-6xl mx-auto bg-white rounded-lg shadow-lg p-6">
-                <h1 className="text-3xl font-extrabold text-gray-800 mb-6 text-center">Admin Dashboard</h1>
+        <div className="min-h-screen bg-gray-100 p-8">
+            <div className="max-w-7xl mx-auto bg-white rounded-lg shadow-xl p-8">
+                <h1 className="text-4xl font-extrabold text-gray-800 mb-6">Admin Dashboard</h1>
+                <p className="text-xl text-gray-600 mb-8">Manage users and roles in your application.</p>
 
-                <h2 className="text-2xl font-bold text-gray-700 mb-4">Manage Users</h2>
-
-                {users.length === 0 ? (
-                    <p className="text-gray-600 text-center py-8">No users found in the system.</p>
-                ) : (
-                    <div className="overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
-                        <table className="min-w-full divide-y divide-gray-200">
-                            <thead className="bg-gray-50">
-                                <tr>
-                                    <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider rounded-tl-lg">Username</th>
-                                    <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                                    <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-                                    <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider rounded-tr-lg">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
-                                {users.map((u) => (
-                                    <tr key={u._id} className="hover:bg-gray-50 transition duration-150 ease-in-out">
-                                        <td className="py-3 px-4 whitespace-nowrap text-sm text-gray-900">{u.username}</td>
-                                        <td className="py-3 px-4 whitespace-nowrap text-sm text-gray-900">{u.email}</td>
-                                        <td className="py-3 px-4 whitespace-nowrap text-sm text-gray-900">
-                                            <div className="relative inline-block text-left">
-                                                <select
-                                                    value={u.role}
-                                                    onChange={(e) => handleUpdateUserRole(u._id, e.target.value)}
-                                                    className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md shadow-sm appearance-none bg-white border"
-                                                >
-                                                    <option value="user">User</option>
-                                                    <option value="admin">Admin</option>
-                                                </select>
-                                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
-                                                    {/* Chevron icon for dropdown */}
-                                                    <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                                                        <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                                                    </svg>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="py-3 px-4 whitespace-nowrap text-sm font-medium">
-                                            <button
-                                                onClick={() => handleDeleteUser(u._id)}
-                                                className="bg-red-500 text-white px-4 py-2 rounded-md shadow-sm hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition duration-200"
-                                            >
-                                                Delete
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                {message && (
+                    <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-6" role="alert">
+                        <span className="block sm:inline">{message}</span>
                     </div>
                 )}
+                {error && (
+                    <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-6" role="alert">
+                        <span className="block sm:inline">{error}</span>
+                    </div>
+                )}
+
+                <div className="overflow-x-auto">
+                    <table className="min-w-full bg-white border border-gray-300 rounded-lg shadow-sm">
+                        <thead className="bg-gray-50">
+                            <tr>
+                                <th className="py-3 px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Username</th>
+                                <th className="py-3 px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                                <th className="py-3 px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                                <th className="py-3 px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200">
+                            {users.map((userItem) => (
+                                <tr key={userItem._id} className="hover:bg-gray-50">
+                                    <td className="py-4 px-6 whitespace-nowrap text-sm font-medium text-gray-900">{userItem.username}</td>
+                                    <td className="py-4 px-6 whitespace-nowrap text-sm text-gray-600">{userItem.email}</td>
+                                    <td className="py-4 px-6 whitespace-nowrap text-sm text-gray-600">{userItem.role}</td>
+                                    <td className="py-4 px-6 whitespace-nowrap text-sm">
+                                        <div className="flex space-x-2">
+                                            {/* Prevent changing own role or deleting self if you want */}
+                                            {userItem._id !== user._id && (
+                                                <>
+                                                    <button
+                                                        onClick={() => handleChangeRoleClick(userItem._id, userItem.username, userItem.role)}
+                                                        className={`px-3 py-1 rounded-md text-white transition duration-200
+                                                            ${userItem.role === 'admin' ? 'bg-yellow-500 hover:bg-yellow-600' : 'bg-indigo-500 hover:bg-indigo-600'}`}
+                                                    >
+                                                        {userItem.role === 'admin' ? 'Demote to User' : 'Promote to Admin'}
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDeleteUserClick(userItem._id, userItem.username)}
+                                                        className="px-3 py-1 bg-red-500 text-white rounded-md hover:bg-red-600 transition duration-200"
+                                                    >
+                                                        Delete
+                                                    </button>
+                                                </>
+                                            )}
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
             </div>
-            {showDeleteModal && (
-                <ConfirmationModal
-                    message="Are you sure you want to delete this user? This action cannot be undone."
-                    onConfirm={confirmDelete}
-                    onCancel={cancelDelete}
-                />
+
+            {/* Delete Confirmation Modal */}
+            {showDeleteConfirmModal && selectedUser && (
+                <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full text-center">
+                        <h3 className="text-lg font-bold mb-4">Confirm Deletion</h3>
+                        <p className="mb-6">Are you sure you want to delete user "{selectedUser.username}"?</p>
+                        <div className="flex justify-center space-x-4">
+                            <button
+                                onClick={confirmDeleteUser}
+                                className="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition duration-200"
+                            >
+                                Yes, Delete
+                            </button>
+                            <button
+                                onClick={cancelAction}
+                                className="px-4 py-2 bg-gray-300 text-gray-800 rounded-md hover:bg-gray-400 transition duration-200"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Change Role Confirmation Modal */}
+            {showRoleConfirmModal && selectedUser && (
+                <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full text-center">
+                        <h3 className="text-lg font-bold mb-4">Confirm Role Change</h3>
+                        <p className="mb-6">Are you sure you want to change "{selectedUser.username}"'s role to "{newRole}"?</p>
+                        <div className="flex justify-center space-x-4">
+                            <button
+                                onClick={confirmChangeRole}
+                                className="px-4 py-2 bg-indigo-500 text-white rounded-md hover:bg-indigo-600 transition duration-200"
+                            >
+                                Yes, Change Role
+                            </button>
+                            <button
+                                onClick={cancelAction}
+                                className="px-4 py-2 bg-gray-300 text-gray-800 rounded-md hover:bg-gray-400 transition duration-200"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

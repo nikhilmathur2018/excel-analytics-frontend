@@ -3,8 +3,7 @@ import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import axios from 'axios';
 
 // Define the API_URL based on the environment variable
-// This line is crucial for your deployed frontend to know where to find the backend.
-const API_URL = process.env.REACT_APP_API_URL; 
+const API_URL = process.env.REACT_APP_API_URL; // This should be http://localhost:5000
 
 // Get user from localStorage
 const user = JSON.parse(localStorage.getItem('user'));
@@ -20,9 +19,8 @@ const initialState = {
 // Register User
 export const register = createAsyncThunk('auth/register', async (userData, thunkAPI) => {
     try {
-        // Use the API_URL here for the full path
-        // Since your Replit Dev URL ends with a '/', we don't need to add an extra '/' before 'api/auth/register'
-        const response = await axios.post(`${API_URL}api/auth/register`, userData); 
+        // CORRECTED LINE: Added '/api' before '/auth/register'
+        const response = await axios.post(`${API_URL}/api/auth/register`, userData);
         if (response.data) {
             localStorage.setItem('user', JSON.stringify(response.data));
         }
@@ -36,8 +34,8 @@ export const register = createAsyncThunk('auth/register', async (userData, thunk
 // Login User
 export const login = createAsyncThunk('auth/login', async (userData, thunkAPI) => {
     try {
-        // Use the API_URL here for the full path
-        const response = await axios.post(`${API_URL}api/auth/login`, userData);
+        // CORRECTED LINE: Added '/api' before '/auth/login'
+        const response = await axios.post(`${API_URL}/api/auth/login`, userData);
         if (response.data) {
             localStorage.setItem('user', JSON.stringify(response.data));
         }

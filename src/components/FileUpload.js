@@ -35,9 +35,9 @@ function FileUpload() {
                     Authorization: `Bearer ${user.token}`,
                 },
             };
-            
-            // FIX HERE: Use API_URL for the upload endpoint
-            await axios.post(`${API_URL}api/upload`, formData, config); // <-- Corrected line
+
+            // This line is correct AS LONG AS API_URL does NOT end with /api
+            await axios.post(`${API_URL}/api/upload`, formData, config); 
             
             setMessage('File uploaded and parsed successfully!');
             setLoading(false);
