@@ -32,10 +32,10 @@ function FileUpload() {
                     Authorization: `Bearer ${user.token}`,
                 },
             };
-            const response = await axios.post('/api/upload', formData, config);
+            // FIX: Removed 'const response =' as it was unused
+            await axios.post('/api/upload', formData, config);
             setMessage('File uploaded and parsed successfully!');
             setLoading(false);
-            // Optionally redirect or update history view
             navigate('/dashboard'); // Or a specific analysis page
         } catch (error) {
             setMessage(error.response?.data?.message || 'Error uploading file.');

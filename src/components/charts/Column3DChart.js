@@ -1,6 +1,6 @@
 // client/src/components/charts/Column3DChart.js
-import React, { useRef, useState, useEffect } from 'react';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import React, { useRef, useState } from 'react'; // REMOVED useEffect
+import { Canvas, useFrame } from '@react-three/fiber'; // REMOVED useThree
 import { OrbitControls, Html, Grid } from '@react-three/drei';
 import * as THREE from 'three';
 
@@ -87,7 +87,7 @@ function Bar({ value, index, total, label, maxBarHeight, xOffset, color }) {
 
 function Column3DChart({ data, xAxisLabel = "Categories", yAxisLabel = "Values" }) {
     const maxDataValue = Math.max(...data.map(item => item.value));
-    const maxBarHeight = maxDataValue > 0 ? maxDataValue : 1;
+    // REMOVED: const maxBarHeight = maxDataValue > 0 ? maxDataValue : 1; // This line is now redundant
 
     const xOffset = ((data.length - 1) * 2) / 2;
 
@@ -171,7 +171,8 @@ function Column3DChart({ data, xAxisLabel = "Categories", yAxisLabel = "Values" 
                             index={idx}
                             total={data.length}
                             label={item.label}
-                            maxBarHeight={maxDataValue}
+                            // FIX: Pass the derived maxBarHeight directly
+                            maxBarHeight={maxDataValue > 0 ? maxDataValue : 1}
                             xOffset={xOffset}
                             color={getBarColor(idx)}
                         />

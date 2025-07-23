@@ -1,6 +1,6 @@
 // client/src/pages/Analyze.js
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom'; // Import useNavigate for redirection
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'; // Import useCallback
+import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useSelector } from 'react-redux';
 import jsPDF from 'jspdf';
@@ -9,45 +9,38 @@ import jsPDF from 'jspdf';
 import BarChart from '../components/charts/BarChart';
 import LineChart from '../components/charts/LineChart';
 import PieChart from '../components/charts/PieChart';
-import Column3DChart from '../components/charts/Column3DChart'; // Assuming this is your Three.js based component
+import Column3DChart from '../components/charts/Column3DChart';
 
 // Import and Register chartjs-plugin-datalabels
 import ChartDataLabels from 'chartjs-plugin-datalabels';
-import { Chart as ChartJS, registerables } from 'chart.js'; // Import registerables for Chart.js 3+
-ChartJS.register(...registerables, ChartDataLabels); // Register all standard Chart.js components and the datalabels plugin
+import { Chart as ChartJS, registerables } from 'chart.js';
+ChartJS.register(...registerables, ChartDataLabels);
 
 function Analyze() {
-  const { fileId } = useParams(); // Extracts fileId from the URL (e.g., /analyze/:fileId)
-  const navigate = useNavigate(); // Initialize useNavigate hook for programmatic navigation
-  const { user } = useSelector((state) => state.auth); // Get user and token from Redux for authentication
+  const { fileId } = useParams();
+  const navigate = useNavigate();
+  const { user } = useSelector((state) => state.auth);
 
-  // State variables for data fetching and display
-  const [fileData, setFileData] = useState(null); // Stores the fetched file data (parsed data, sheet names, etc.)
-  const [loading, setLoading] = useState(true); // Manages loading state for initial data fetch
-  const [error, setError] = useState(null);     // Stores any error messages
+  const [fileData, setFileData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // State variables for user selections
-  const [selectedSheet, setSelectedSheet] = useState(''); // Currently selected sheet name
-  const [xAxis, setXAxis] = useState('');                 // Currently selected X-axis column header
-  const [yAxis, setYAxis] = useState('');                 // Currently selected Y-axis column header
-  const [chartType, setChartType] = useState('Bar');      // Currently selected chart type (default to Bar)
+  const [selectedSheet, setSelectedSheet] = useState('');
+  const [xAxis, setXAxis] = useState('');
+  const [yAxis, setYAxis] = useState('');
+  const [chartType, setChartType] = useState('Bar');
 
-  // State for Chart.js configuration
-  const [chartConfig, setChartConfig] = useState(null); // Holds data and options for Chart.js components
+  const [chartConfig, setChartConfig] = useState(null);
 
-  // State specifically for 3D chart data (as it might need a different structure than Chart.js)
   const [column3DData, setColumn3DData] = useState([]);
 
-  // useRef for Chart.js instance (used for downloads)
-  const chartRef = useRef(null); // Initialize with null
+  const chartRef = useRef(null);
 
-  // State for AI Summary functionality
   const [aiSummary, setAiSummary] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
 
-  // NEW: State for sheet deletion confirmation modal
   const [showSheetConfirmModal, setShowSheetConfirmModal] = useState(false);
-  const [sheetToDelete, setSheetToDelete] = useState(null); // Stores the name of the sheet to be deleted
+  const [sheetToDelete, setSheetToDelete] = useState(null);
 
   // --- Define Color Palettes using useMemo to prevent unnecessary re-renders ---
   const barColors = useMemo(() => [
@@ -76,7 +69,8 @@ function Analyze() {
 
 
   // Function to fetch file data (re-usable for initial load and after sheet deletion)
-  const fetchFileData = async () => {
+  // FIX: Wrap fetchFileData in useCallback to make it stable
+  const fetchFileData = useCallback(async () => {
     try {
       if (!user || !user.token) {
         setError('User not authenticated. Please log in.');
@@ -87,15 +81,15 @@ function Analyze() {
       const config = {
         headers: { Authorization: `Bearer ${user.token}` },
       };
-      // Corrected API endpoint for fetching file data
-      const response = await axios.get(`/api/upload/${fileId}/data`, config);
-      setFileData(response.data);
-      
+      // FIX: Removed 'const response =' as it was unused
+      const result = await axios.get(`/api/upload/${fileId}/data`, config);
+      setFileData(result.data);
+
       // Auto-select the first sheet if the previously selected sheet was deleted
       // or if no sheet was selected initially.
-      if (response.data.sheetNames && response.data.sheetNames.length > 0) {
-        if (!selectedSheet || !response.data.sheetNames.includes(selectedSheet)) {
-            setSelectedSheet(response.data.sheetNames[0]);
+      if (result.data.sheetNames && result.data.sheetNames.length > 0) {
+        if (!selectedSheet || !result.data.sheetNames.includes(selectedSheet)) {
+            setSelectedSheet(result.data.sheetNames[0]);
             setXAxis(''); // Reset axes when sheet selection changes
             setYAxis('');
         }
@@ -111,7 +105,8 @@ function Analyze() {
       setError('Failed to load file data. Please ensure the file exists and you are authorized.');
       setLoading(false);
     }
-  };
+  }, [user, fileId, navigate, selectedSheet, setFileData, setSelectedSheet, setXAxis, setYAxis, setError, setLoading]); // Added all dependencies for useCallback
+
 
   // useEffect for initial file data fetching when component mounts or fileId/user changes
   useEffect(() => {
@@ -121,9 +116,7 @@ function Analyze() {
         setLoading(false);
         setError("No file selected for analysis. Please go to your dashboard and select a file.");
     }
-    // IMPORTANT: removed `selectedSheet` from dependencies to prevent infinite loops
-    // `fetchFileData` is called when `user` or `fileId` changes, and it handles `selectedSheet` internally.
-  }, [user, fileId, navigate]); // Added navigate to dependencies as it's used in fetchFileData
+  }, [user, fileId, fetchFileData]); // FIX: Added fetchFileData to dependencies
 
 
   // useEffect for chart configuration based on selected sheet, axes, and chart type
@@ -297,7 +290,7 @@ function Analyze() {
         return;
       }
 
-      const response = await axios.post(
+      const aiResponse = await axios.post( // Renamed 'response' to 'aiResponse' for clarity, though it's used here.
         '/api/ai/summary',
         {
           dataToSummarize: dataForAI.slice(0, 100),
@@ -308,7 +301,7 @@ function Analyze() {
         config
       );
 
-      setAiSummary(response.data.summary);
+      setAiSummary(aiResponse.data.summary);
       setAiLoading(false);
 
     } catch (error) {
@@ -351,7 +344,8 @@ function Analyze() {
         };
 
         // Send PUT request to backend to delete the sheet
-        const response = await axios.put(`/api/upload/${fileId}/sheet/${sheetToDelete}`, {}, config);
+        // FIX: Removed 'const response =' as it was unused
+        await axios.put(`/api/upload/${fileId}/sheet/${sheetToDelete}`, {}, config);
 
         // If successful, re-fetch file data to update the UI
         // This will also automatically handle redirection if the last sheet was deleted (handled in fetchFileData)
@@ -428,7 +422,7 @@ function Analyze() {
             textShadowColor: 'rgba(0,0,0,0.6)',
         };
         delete baseOptions.scales;
-    } 
+    }
 
     return baseOptions;
   }, [xAxis, yAxis]);
@@ -451,7 +445,7 @@ function Analyze() {
         {/* Select Sheet */}
         <div className="flex flex-col">
             <label className="block text-sm font-medium text-gray-700 mb-1">Select Sheet:</label>
-            <div className="flex items-center space-x-2"> {/* Added flex container for dropdown and button */}
+            <div className="flex items-center space-x-2">
                 <select
                     value={selectedSheet}
                     onChange={(e) => setSelectedSheet(e.target.value)}

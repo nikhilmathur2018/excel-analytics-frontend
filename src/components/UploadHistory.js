@@ -1,165 +1,133 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios'; // For making HTTP requests to your backend
-import { useSelector } from 'react-redux'; // To access user authentication state from Redux
-import { Link } from 'react-router-dom'; // For declarative navigation in React Router
+import React, { useState, useEffect, useCallback } from 'react'; // Import useCallback
+import axios from 'axios';
+import { useSelector } from 'react-redux';
+import { Link } from 'react-router-dom';
 
 function UploadHistory() {
-    // State variables to manage the component's data and UI status
-    const [history, setHistory] = useState([]);    // Stores the fetched list of uploaded files
-    const [loading, setLoading] = useState(true); // Indicates if data is currently being fetched
-    const [error, setError] = useState(null);      // Stores any error messages during fetching
-
-    // State for expanded files (to show/hide sheets)
-    const [expandedFiles, setExpandedFiles] = useState({}); // Stores file IDs as keys, boolean as value
-
-    // State for confirmation modals (for both file and sheet deletion)
+    const [history, setHistory] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [expandedFiles, setExpandedFiles] = useState({});
     const [showFileConfirmModal, setShowFileConfirmModal] = useState(false);
     const [showSheetConfirmModal, setShowSheetConfirmModal] = useState(false);
-    // Stores details of the item to be deleted: { type: 'file'/'sheet', id: fileId, name: fileName/sheetName, sheetName?: sheetName }
     const [itemToDelete, setItemToDelete] = useState(null);
 
-    // Get the user object (including the JWT token) from Redux state.
     const { user } = useSelector((state) => state.auth);
 
-    // Function to fetch upload history from the backend
-    const fetchHistory = async () => {
+    // FIX: Wrap fetchHistory in useCallback
+    const fetchHistory = useCallback(async () => {
         try {
-            // Ensure user and token exist before making the request
             if (!user || !user.token) {
                 setError('User not authenticated. Please log in.');
                 setLoading(false);
                 return;
             }
 
-            // Configure headers with the authorization token
             const config = {
                 headers: { Authorization: `Bearer ${user.token}` },
             };
 
-            // Fetch history from the backend API endpoint
             const response = await axios.get('/api/upload/history', config);
-            console.log("Fetched history:", response.data); // Log the fetched data for debugging
-            setHistory(response.data); // Update the history state
-            setLoading(false); // Set loading to false once data is fetched
+            console.log("Fetched history:", response.data);
+            setHistory(response.data);
+            setLoading(false);
         } catch (err) {
-            // Log and set error state if fetching fails
             console.error("Error fetching history:", err.response ? err.response.data : err.message);
             setError('Failed to fetch upload history. Please try again.');
             setLoading(false);
         }
-    };
+    }, [user]); // Dependency for useCallback: fetchHistory depends on 'user'
 
-    // useEffect hook: Fetches data when the component mounts or when 'user' object changes.
     useEffect(() => {
         if (user) {
-            fetchHistory(); // Fetch history if user is logged in
+            fetchHistory();
         } else {
-            // Reset states if user is not logged in
             setLoading(false);
             setHistory([]);
             setError(null);
         }
-    }, [user]); // Dependency array: This effect will re-run if the 'user' object reference changes.
+    }, [user, fetchHistory]); // Dependency array: Now includes fetchHistory
 
-    // Function to toggle the expansion state of a file (show/hide its sheets)
     const handleToggleExpand = (fileId) => {
         setExpandedFiles(prev => ({
             ...prev,
-            [fileId]: !prev[fileId] // Toggle the boolean value for the given fileId
+            [fileId]: !prev[fileId]
         }));
     };
 
-    // Function to handle click for any delete button (file or sheet)
     const handleDeleteClick = (type, fileId, name, sheetName = null) => {
-        // Set the item to be deleted in state
         setItemToDelete({ type, id: fileId, name, sheetName });
         if (type === 'file') {
-            setShowFileConfirmModal(true); // Show file deletion confirmation modal
+            setShowFileConfirmModal(true);
         } else if (type === 'sheet') {
-            // Find the file in the current history to check its sheets
             const file = history.find(f => f._id === fileId);
             if (file && file.sheetNames.length === 1) {
-                // If it's the last sheet, treat it as a file deletion
                 setItemToDelete({ type: 'file', id: fileId, name: file.originalFileName });
                 setShowFileConfirmModal(true);
             } else {
-                setShowSheetConfirmModal(true); // Show sheet deletion confirmation modal
+                setShowSheetConfirmModal(true);
             }
         }
     };
 
-    // Function to confirm and execute sheet deletion
     const confirmSheetDelete = async () => {
-        setShowSheetConfirmModal(false); // Close the modal
-        if (!itemToDelete || itemToDelete.type !== 'sheet') return; // Ensure it's a sheet deletion request
+        setShowSheetConfirmModal(false);
+        if (!itemToDelete || itemToDelete.type !== 'sheet') return;
 
         try {
-            // Authenticate user before deletion
             if (!user || !user.token) {
                 setError('Authentication required to delete sheet.');
                 return;
             }
 
-            // Configure headers with authorization token
             const config = {
                 headers: { Authorization: `Bearer ${user.token}` },
             };
 
-            // Send PUT request to backend to delete the specific sheet
             await axios.put(`/api/upload/${itemToDelete.id}/sheet/${itemToDelete.sheetName}`, {}, config);
 
-            // Re-fetch history to update the list after deletion
             await fetchHistory();
-            setItemToDelete(null); // Clear item to delete
-            setError(null); // Clear any previous errors
+            setItemToDelete(null);
+            setError(null);
             console.log(`Sheet "${itemToDelete.sheetName}" deleted successfully from file ${itemToDelete.name}.`);
         } catch (err) {
-            // Log and set error if deletion fails
             console.error("Error deleting sheet:", err.response ? err.response.data : err.message);
             setError(`Failed to delete sheet: ${err.response?.data?.message || err.message}`);
         }
     };
 
-    // Function to confirm and execute file deletion
     const confirmFileDelete = async () => {
-        setShowFileConfirmModal(false); // Close the modal
-        if (!itemToDelete || itemToDelete.type !== 'file') return; // Ensure it's a file deletion request
+        setShowFileConfirmModal(false);
+        if (!itemToDelete || itemToDelete.type !== 'file') return;
 
         try {
-            // Authenticate user before deletion
             if (!user || !user.token) {
                 setError('Authentication required to delete file.');
                 return;
             }
 
-            // Configure headers with authorization token
             const config = {
                 headers: { Authorization: `Bearer ${user.token}` },
             };
 
-            // Send DELETE request to backend for the entire file
             await axios.delete(`/api/upload/${itemToDelete.id}`, config);
 
-            // Re-fetch history to update the list after deletion
             await fetchHistory();
-            setItemToDelete(null); // Clear item to delete
-            setError(null); // Clear any previous errors
+            setItemToDelete(null);
+            setError(null);
             console.log(`File ${itemToDelete.name} deleted successfully.`);
         } catch (err) {
-            // Log and set error if deletion fails
             console.error("Error deleting file:", err.response ? err.response.data : err.message);
             setError(`Failed to delete file: ${err.response?.data?.message || err.message}`);
         }
     };
 
-    // Function to cancel any pending deletion
     const cancelDeletion = () => {
         setShowFileConfirmModal(false);
         setShowSheetConfirmModal(false);
-        setItemToDelete(null); // Clear the item to delete
+        setItemToDelete(null);
     };
 
-    // Conditional rendering based on the component's current state (loading, error, or data loaded).
     if (loading) return <div className="text-center py-4 text-gray-600">Loading upload history...</div>;
     if (error) return <div className="text-red-500 text-center py-4 font-semibold">{error}</div>;
 
@@ -174,25 +142,21 @@ function UploadHistory() {
                         <li key={file._id} className="py-3 px-2">
                             <div className="flex justify-between items-center">
                                 <div className="flex items-center flex-grow">
-                                    {/* Expand/Collapse Button */}
                                     <button
                                         onClick={() => handleToggleExpand(file._id)}
                                         className="mr-2 p-1 text-gray-600 hover:text-gray-900 rounded-full hover:bg-gray-100 transition duration-200"
                                         title={expandedFiles[file._id] ? "Collapse sheets" : "Expand sheets"}
                                     >
                                         {expandedFiles[file._id] ? (
-                                            // SVG for collapse icon (up arrow)
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                                                 <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
                                             </svg>
                                         ) : (
-                                            // SVG for expand icon (down arrow)
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                                                 <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 011.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 010-1.414z" clipRule="evenodd" />
                                             </svg>
                                         )}
                                     </button>
-                                    {/* Link to Analyze page for the file */}
                                     <Link
                                         to={`/analyze/${file._id}`}
                                         className="text-blue-700 hover:text-blue-900 hover:underline text-lg font-medium flex-grow"
@@ -200,7 +164,6 @@ function UploadHistory() {
                                         {file.originalFileName} (Uploaded on: {new Date(file.uploadDate).toLocaleDateString()})
                                     </Link>
                                 </div>
-                                {/* Delete Button for the entire file */}
                                 <button
                                     onClick={() => handleDeleteClick('file', file._id, file.originalFileName)}
                                     className="px-3 py-1 bg-red-500 text-white rounded-md hover:bg-red-600 transition duration-200 text-sm font-medium ml-4"
@@ -209,7 +172,6 @@ function UploadHistory() {
                                 </button>
                             </div>
 
-                            {/* Conditional rendering for sheets list, shown only if expanded */}
                             {expandedFiles[file._id] && file.sheetNames && file.sheetNames.length > 0 && (
                                 <ul className="ml-8 mt-2 border-l-2 border-gray-200 pl-4 space-y-1">
                                     {file.sheetNames.map((sheetName) => (
@@ -226,7 +188,6 @@ function UploadHistory() {
                                     ))}
                                 </ul>
                             )}
-                            {/* Message if no sheets are found for an expanded file */}
                             {expandedFiles[file._id] && (!file.sheetNames || file.sheetNames.length === 0) && (
                                 <p className="ml-8 mt-2 text-gray-500 italic text-sm">No sheets found for this file.</p>
                             )}
@@ -235,7 +196,6 @@ function UploadHistory() {
                 </ul>
             )}
 
-            {/* Confirmation Modal for deleting a single sheet */}
             {showSheetConfirmModal && itemToDelete && itemToDelete.type === 'sheet' && (
                 <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
                     <div className="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full text-center">
@@ -259,7 +219,6 @@ function UploadHistory() {
                 </div>
             )}
 
-            {/* Confirmation Modal for deleting an entire file (used for both file delete button and last sheet delete) */}
             {showFileConfirmModal && itemToDelete && itemToDelete.type === 'file' && (
                 <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
                     <div className="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full text-center">
