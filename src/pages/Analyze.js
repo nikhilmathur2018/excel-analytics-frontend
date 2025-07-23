@@ -1,4 +1,3 @@
-// client/src/pages/Analyze.js
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'; // Import useCallback
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -81,8 +80,8 @@ function Analyze() {
       const config = {
         headers: { Authorization: `Bearer ${user.token}` },
       };
-      // FIX: Removed 'const response =' as it was unused
-      const result = await axios.get(`/api/upload/${fileId}/data`, config);
+      // FIX: Added process.env.REACT_APP_API_URL
+      const result = await axios.get(`${process.env.REACT_APP_API_URL}/api/upload/${fileId}/data`, config);
       setFileData(result.data);
 
       // Auto-select the first sheet if the previously selected sheet was deleted
@@ -290,8 +289,9 @@ function Analyze() {
         return;
       }
 
-      const aiResponse = await axios.post( // Renamed 'response' to 'aiResponse' for clarity, though it's used here.
-        '/api/ai/summary',
+      // FIX: Added process.env.REACT_APP_API_URL
+      const aiResponse = await axios.post(
+        `${process.env.REACT_APP_API_URL}/api/ai/summary`,
         {
           dataToSummarize: dataForAI.slice(0, 100),
           xAxis: currentXAxis,
@@ -344,8 +344,8 @@ function Analyze() {
         };
 
         // Send PUT request to backend to delete the sheet
-        // FIX: Removed 'const response =' as it was unused
-        await axios.put(`/api/upload/${fileId}/sheet/${sheetToDelete}`, {}, config);
+        // FIX: Added process.env.REACT_APP_API_URL
+        await axios.put(`${process.env.REACT_APP_API_URL}/api/upload/${fileId}/sheet/${sheetToDelete}`, {}, config);
 
         // If successful, re-fetch file data to update the UI
         // This will also automatically handle redirection if the last sheet was deleted (handled in fetchFileData)

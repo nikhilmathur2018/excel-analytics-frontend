@@ -5,6 +5,9 @@ import { useSelector } from 'react-redux'; // Assuming Redux Toolkit is used for
 import { useNavigate } from 'react-router-dom'; // For redirection
 import { createPortal } from 'react-dom'; // For custom modal
 
+// 1. Define API_URL using the environment variable
+const API_URL = process.env.REACT_APP_API_URL;
+
 // Custom Modal Component (replaces window.confirm)
 const ConfirmationModal = ({ message, onConfirm, onCancel }) => {
     return createPortal(
@@ -60,7 +63,8 @@ function AdminDashboard() {
                         Authorization: `Bearer ${user.token}`, // Include JWT token
                     },
                 };
-                const response = await axios.get('/api/admin/users', config);
+                // FIX: Use API_URL for fetching users
+                const response = await axios.get(`${API_URL}api/admin/users`, config);
                 setUsers(response.data);
             } catch (err) {
                 console.error('Error fetching users:', err);
@@ -92,7 +96,8 @@ function AdminDashboard() {
                     Authorization: `Bearer ${user.token}`,
                 },
             };
-            await axios.delete(`/api/admin/users/${userToDelete}`, config);
+            // FIX: Use API_URL for deleting a user
+            await axios.delete(`${API_URL}api/admin/users/${userToDelete}`, config);
             // Filter out the deleted user from the state to update UI
             setUsers(users.filter((u) => u._id !== userToDelete));
             setUserToDelete(null); // Clear user to delete
@@ -116,8 +121,8 @@ function AdminDashboard() {
                     Authorization: `Bearer ${user.token}`,
                 },
             };
-            // Send PUT request to update role
-            await axios.put(`/api/admin/users/${userId}/role`, { role: newRole }, config);
+            // FIX: Use API_URL for updating user role
+            await axios.put(`${API_URL}api/admin/users/${userId}/role`, { role: newRole }, config);
             // Update the user's role in the local state to reflect changes immediately
             setUsers(users.map((u) => (u._id === userId ? { ...u, role: newRole } : u)));
         } catch (err) {
